@@ -1,0 +1,54 @@
+"{\"chainId\":1
+,\"price\":\"1621.51725506954578267\",
+\"guaranteedPrice\":\"1605.30208251885032484\",
+\"estimatedPriceImpact\":\"0\",
+\"to\":\"0xdef1c0ded9bec7f1a1670819833240f027b25eff\",
+\"data\":\"0x6af479b20000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000016345785d8a0000000000000000000000000000000000000000000000000008b3cddde12d1694240000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002bc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f000000000000000000000000000000000000000000869584cd000000000000000000000000100000000000000000000000000000000000001100000000000000000000000000000000000000000000001e1ca98e7f63e0134a\",
+\"value\":\"0\",
+\"gas\":\"118730\",
+\"estimatedGas\":\"118730\",
+\"gasPrice\":\"20000000000\",
+\"protocolFee\":\"0\",
+\"minimumProtocolFee\":\"0\",
+\"buyTokenAddress\":\"0x6b175474e89094c44da98b954eedeac495271d0f\",
+\"sellTokenAddress\":\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",
+\"buyAmount\":\"162151725506954578267\",
+\"sellAmount\":\"100000000000000000\",
+\"sources\":[{\"name\":\"0x\",\"proportion\":\"0\"},{\"name\":\"Uniswap\",\"proportion\":\"0\"},{\"name\":\"Uniswap_V2\",\"proportion\":\"0\"},{\"name\":\"Curve\",\"proportion\":\"0\"},{\"name\":\"Balancer\",\"proportion\":\"0\"},{\"name\":\"Balancer_V2\",\"proportion\":\"0\"},{\"name\":\"Bancor\",\"proportion\":\"0\"},{\"name\":\"BancorV3\",\"proportion\":\"0\"},{\"name\":\"mStable\",\"proportion\":\"0\"},{\"name\":\"SushiSwap\",\"proportion\":\"0\"},{\"name\":\"Shell\",\"proportion\":\"0\"},{\"name\":\"DODO\",\"proportion\":\"0\"},{\"name\":\"DODO_V2\",\"proportion\":\"0\"},{\"name\":\"CryptoCom\",\"proportion\":\"0\"},{\"name\":\"Lido\",\"proportion\":\"0\"},{\"name\":\"MakerPsm\",\"proportion\":\"0\"},{\"name\":\"KyberDMM\",\"proportion\":\"0\"},{\"name\":\"Component\",\"proportion\":\"0\"},{\"name\":\"Saddle\",\"proportion\":\"0\"},{\"name\":\"Uniswap_V3\",\"proportion\":\"1\"},{\"name\":\"Curve_V2\",\"proportion\":\"0\"},{\"name\":\"ShibaSwap\",\"proportion\":\"0\"},{\"name\":\"Synapse\",\"proportion\":\"0\"},{\"name\":\"Synthetix\",\"proportion\":\"0\"},{\"name\":\"Aave_V2\",\"proportion\":\"0\"},{\"name\":\"Compound\",\"proportion\":\"0\"}],
+\"orders\":[{\"type\":0,
+\"source\":\"Uniswap_V3\",
+\"makerToken\":\"0x6b175474e89094c44da98b954eedeac495271d0f\",
+\"takerToken\":\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",
+\"makerAmount\":\"162151725506954578267\",\"takerAmount\":\"100000000000000000\",
+\"fillData\":{\"router\":\"0xe592427a0aece92de3edee1f18e0157c05861564\",
+\"tokenAddressPath\":[\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2\",\"0x6b175474e89094c44da98b954eedeac495271d0f\"],
+\"uniswapPath\":\"0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc20001f46b175474e89094c44da98b954eedeac495271d0f\",
+\"gasUsed\":58730},
+\"fill\":{\"input\":\"100000000000000000\",
+\"output\":\"162151725506954578267\",
+\"adjustedOutput\":\"159144459605702620391\",
+\"gas\":92730}}],
+\"allowanceTarget\":\"0xdef1c0ded9bec7f1a1670819833240f027b25eff\",
+\"decodedUniqueId\":\"1e1ca98e7f-1675629386\",
+\"sellTokenToEthRate\":\"1\",
+\"buyTokenToEthRate\":\"1621.51725506954578267\",
+\"expectedSlippage\":null}"
+
+"orders": [
+        {
+            "makerToken": "0x6b175474e89094c44da98b954eedeac495271d0f",
+            "takerToken": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+            "makerAmount": "25044918553394464675",
+            "takerAmount": "10000000000000000",
+            "fillData": {
+            "tokenAddressPath": [
+                "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+                "0x6b175474e89094c44da98b954eedeac495271d0f"
+            ],
+            "router": "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f"
+        },
+        "source": "SushiSwap",
+        "sourcePathId": "0xe58bde9f0ca002c1e99df8df403eabe6431a3b0476ee5dfb92fe0a35af2f5ead",
+        "type": 0
+        }
+    ]
