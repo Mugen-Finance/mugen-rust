@@ -1,33 +1,27 @@
 use ethers::abi::AbiEncode;
 use ethers::types::{Address, Bytes, U256};
 use eyre::Result;
-use std::str::FromStr;
+mod aggregator;
+mod constants;
+mod exchanges;
+mod helpers;
 mod smart_router_calls;
 mod weth;
 
+use aggregator::arbitrum_swaps::*;
+
+use crate::constants::SWAPS_ADDRESS;
+use crate::helpers::get_token_by_chain;
 use crate::smart_router_calls::*;
 
 //TODO:
-// Add batch deposits
 // Add xcal
 // Add Stargate
 // Refactor and make a lib for inputs
+// Change api function
+// Test
 
-#[derive(
-    Clone,
-    Debug,
-    Default,
-    Eq,
-    PartialEq,
-    ::ethers::contract::EthAbiType,
-    ::ethers::contract::EthAbiCodec,
-)]
-struct SushiParams {
-    amount_in: U256,
-    amount_out_min: U256,
-    path: Vec<Address>,
-    send_tokens: bool,
-}
+// Tomorrow Feb 8th finish up the exchange functions and the aggregation function.
 
 #[derive(
     Clone,
@@ -54,129 +48,141 @@ struct CamelotParams {
     ::ethers::contract::EthAbiType,
     ::ethers::contract::EthAbiCodec,
 )]
-struct UniswapV3Single {
-    amount_in: U256,
-    amount_out_min: U256,
-    token_1: Address,
-    token_2: Address,
-    pool_fee: u32,
-}
+struct TokensAndAmounts(Vec<Address>, Vec<U256>);
 
-#[derive(
-    Clone,
-    Debug,
-    Default,
-    Eq,
-    PartialEq,
-    ::ethers::contract::EthAbiType,
-    ::ethers::contract::EthAbiCodec,
-)]
-struct UniswapV3Multi {
-    amount_in: U256,
-    amount_out_min: U256,
-    token_1: Address,
-    token_2: Address,
-    token_3: Address,
-    fee_1: u32,
-    fee_2: u32,
-}
+pub async fn run(
+    src_tokens: Vec<Address>,
+    src_amounts: Vec<U256>,
+    _dst_tokens: Vec<Address>,
+    _src_chain: u64,
+    _dst_chain: u64,
+    exchanges: Vec<&str>,
+    aggregate: bool,
+    complex: u8, // There are 4 type corresponding the type of aggregation that happens. 1: Single to single 2: single to multi 3: multi to single and 4: Multi to multi.
+                 // Depending on which type is supplied is how the aggregation will be applied on both the src and dst chain.
+) -> (Result<()>, Vec<u8>, Vec<Bytes>) {
+    //Steps to take when running the program:
 
+    //Checks the tokens coming in for eth and others, Gets data and makes it use able (may be easier to just seperate eth as a different function)
 
-pub async fn run(_tokens: Vec<Address>, _amounts: Vec<U256>, _chains: Vec<u64>, _exchanges: Vec<String>) -> Result<()> {
-    let token_path: Vec<String> = Vec::new();
-    let exchange = String::from("Camelot");
-    let aggregate = true;
-    let addr_1 = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
-        .parse::<Address>()
-        .unwrap();
-    let addr_2 = "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984"
-        .parse::<Address>()
-        .unwrap();
-    let amount = U256::from(1) * U256::exp10(18);
+    // It should check if it aggregates and is cross chain.
+
+    // Third check which exchanges are being used, if there are any and if aggregate == true
+    // Fourth check the chains to see what chains are being used if they are not the same, prepare stargate parameters and estimate gas fee off chain.
+    // Fifth run the aggregator for the dst chain to get the necessary data and encode it
+    //
+    // Finally test all of this to make sure it is working properly.
+
     let mut steps: Vec<u8> = Vec::new();
     let mut data: Vec<Bytes> = Vec::new();
+
+    // Change this to check to see if eth is in there and if it is not, change it to just encode the src tokens and amount
+    // Turn this into its own function
+
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+    // ============================================                           Step 1 Clean Source Data                   ===========================================
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+
+    let mut tokens: Vec<Address> = Vec::new();
+    let mut amounts: Vec<U256> = Vec::new();
+
+    for token in src_tokens.clone() {
+        let mut index = 0;
+        if token == constants::ETHEREUM.parse::<Address>().unwrap() {
+            steps.push(2);
+            let amount = AbiEncode::encode(src_amounts[index]);
+            data.push(Bytes::from(amount));
+        } else if token != constants::ETHEREUM.parse::<Address>().unwrap() {
+            tokens.push(token);
+            amounts.push(src_amounts[index]);
+        }
+
+        index += 1;
+    }
+    let bytes_tokens = Bytes::from(AbiEncode::encode(tokens.clone()));
+    let bytes_amounts = Bytes::from(AbiEncode::encode(amounts.clone()));
+
+    let d = [bytes_tokens, bytes_amounts].concat();
+    steps.push(1);
+    data.push(Bytes::from(d));
+
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+    // ===============================================                      Step 2 Verify Exchanges                    =============================================
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+    for exchange in exchanges {
+        match exchange {
+            "Uniswap" => exchanges::uniswap_swap(),
+            "Camelot" => exchanges::camelot_swap(),
+            "Sushi" => exchanges::sushi_swap(),
+            "Xcal" => exchanges::xcal_swap(),
+            _ => (),
+        };
+    }
+
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+    // ===============================================                      Step 3 Aggregate if True                    ============================================
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+
+    //Turn the repeat into its own function
     if aggregate == true {
-        let response = router_path(addr_1, addr_2, amount).await;
-
-        //let orders: Vec<Orders> = response.orders;
-        let order = response.orders;
-
-        //How to get the taker amount to stick?
-
-        for order in order {
-            let amount: String = order.taker_amount.unwrap().to_string();
-            if order.source == "Uniswap_V3" {
-                let tokens = Some(order.fill_data.token_address_path).unwrap().unwrap();
-                let token_1 = &tokens[0];
-                let token_2 = &tokens[1];
-                let token_3 = Some(&tokens[2]);
-
-                match token_3 {
-                    None => {
-                        let params = AbiEncode::encode(UniswapV3Single {
-                            amount_in: U256::from_str(&amount).unwrap(),
-                            amount_out_min: U256::from(0),
-                            token_1: token_1.parse::<Address>().unwrap(),
-                            token_2: token_2.parse::<Address>().unwrap(),
-                            pool_fee: 500,
-                        });
-                        let encoded_data = Bytes::from(params);
-                        steps.push(3);
-                        data.push(encoded_data);
-                    }
-                    Some(_) => {
-                        let params = AbiEncode::encode(UniswapV3Multi {
-                            amount_in: U256::from_str(&amount).unwrap(),
-                            amount_out_min: U256::from(0),
-                            token_1: token_1.parse::<Address>().unwrap(),
-                            token_2: token_2.parse::<Address>().unwrap(),
-                            token_3: token_3.unwrap().parse::<Address>().unwrap(),
-                            fee_1: 500,
-                            fee_2: 500,
-                        });
-                        let encoded_data = Bytes::from(params);
-                        steps.push(4);
-                        data.push(encoded_data);
-                    }
-                }
-            } else if order.source == "SushiSwap" {
-                let mut path: Vec<Address> = Vec::new();
-                for token in order.fill_data.token_address_path.unwrap() {
-                    let address = token.parse::<Address>().unwrap();
-                    path.push(address);
-                }
-                let params = AbiEncode::encode(SushiParams {
-                    amount_in: U256::from_str(&amount).unwrap(),
-                    amount_out_min: U256::from(0),
-                    path: path,
-                    send_tokens: true,
-                });
-                let encoded_data = Bytes::from(params);
-                steps.push(5);
-                data.push(encoded_data);
-            }
+        if complex == 1 && _src_chain == _dst_chain {
+            let (_add_steps, _add_bytes) = single_to_single_aggregate(
+                _src_chain,
+                _dst_tokens[0],
+                src_tokens[0].clone(),
+                amounts[0],
+            )
+            .await;
+        } else if complex == 2 && _src_chain == _dst_chain {
+            let (_add_steps, _add_bytes) =
+                _single_to_multi_aggregate(_src_chain, _dst_tokens, src_tokens[0], src_amounts)
+                    .await;
+        } else if complex == 3 && _src_chain == _dst_chain {
+            let (_add_steps, _add_bytes) =
+                _multi_to_single(_src_chain, _dst_tokens[0], src_tokens, src_amounts).await;
+        } else if complex == 4 && _src_chain == _dst_chain {
+        } else if complex == 1 && _src_chain != _dst_chain {
+        } else if complex == 2 && _src_chain != _dst_chain {
+        } else if complex == 3 && _src_chain != _dst_chain {
+        } else if complex == 4 && _src_chain != _dst_chain {
         }
     }
 
-    if exchange == "Camelot" {
-        let mut path: Vec<Address> = Vec::new();
-        for token in token_path {
-            let i = token.parse::<Address>().unwrap();
-            path.push(i);
-        }
-        let swap_params = AbiEncode::encode(CamelotParams {
-            amount_in: U256::from(0),
-            path: path,
-            referrer: "0x6Cb6D9Fb673CfbF31b3A432F6316fE3196efd4aA"
-                .parse::<Address>()
-                .unwrap(),
-            deadline: U256::from(0),
-        });
-        let encoded_data = Bytes::from(swap_params);
-        steps.push(7);
-        data.push(encoded_data);
-    } else if exchange == "3xcal" {
-    }
     println!("{:#?}, {:#?}", steps, data);
-    Ok(())
+
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+    // ==============================================                     Step * Stargate Preperation                   ============================================
+    // =============================================================================================================================================================
+    // =============================================================================================================================================================
+
+    // Need to also handle dst chain issues
+
+    let stargate_params = AbiEncode::encode(arbitrum_swaps::StargateParams {
+        dst_chain_id: _dst_chain as u16,
+        token: get_token_by_chain(_src_chain),
+        src_pool_id: U256::from(1),
+        dst_pool_id: U256::from(1),
+        amount: U256::from(0),
+        amount_min: U256::from(0),
+        dust_amount: U256::from(0),
+        receiver: SWAPS_ADDRESS.parse::<Address>().unwrap(),
+        to: SWAPS_ADDRESS.parse::<Address>().unwrap(),
+        gas: U256::from(0),
+        src_context: [
+            1, 2, 5, 3, 5, 7, 5, 3, 2, 3, 4, 6, 8, 5, 3, 5, 5, 7, 7, 4, 3, 4, 6, 6, 5, 4, 3, 4, 6,
+            7, 4, 3,
+        ],
+    });
+
+    steps.push(15);
+    data.push(Bytes::from(stargate_params));
+
+    (Ok(()), steps, data)
 }
