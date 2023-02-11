@@ -1,11 +1,17 @@
-use crate::{aggregator::stargate_helper::{self, _get_bridge_token_path}, constants::{STARGATE_ARBITRUM, STARGATE_AVAX, STARGATE_BINANCE, STARGATE_ETHEREUM, STARGATE_POLYGON, STARGATE_FANTOM, STARGATE_OPTIMISM}};
+use crate::{
+    aggregator::stargate_helper::{_get_bridge_token_path},
+    constants::{
+        STARGATE_ARBITRUM, STARGATE_AVAX, STARGATE_BINANCE, STARGATE_ETHEREUM, STARGATE_FANTOM,
+        STARGATE_OPTIMISM, STARGATE_POLYGON,
+    },
+};
 use ethers::{
     abi::{AbiEncode, Address},
     types::{Bytes, U256},
 };
 use reqwest::*;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{str::FromStr, fmt::format};
 
 #[derive(
     Clone,
@@ -32,12 +38,59 @@ struct SushiParams {
     ::ethers::contract::EthAbiType,
     ::ethers::contract::EthAbiCodec,
 )]
+struct UniswapV2Params {
+    amount_in: U256,
+    amount_out_min: U256,
+    path: Vec<Address>,
+    deadline: U256,
+}
+
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    ::ethers::contract::EthAbiType,
+    ::ethers::contract::EthAbiCodec,
+)]
 struct UniswapV3Single {
     amount_in: U256,
     amount_out_min: U256,
     token_1: Address,
     token_2: Address,
     pool_fee: u32,
+}
+
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    ::ethers::contract::EthAbiType,
+    ::ethers::contract::EthAbiCodec,
+)]
+struct VeloParams {
+    amount_in: U256,
+    amount_out_min: U256,
+    routes: Vec<Route>,
+    deadline: U256
+}
+
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    ::ethers::contract::EthAbiType,
+    ::ethers::contract::EthAbiCodec,
+)]
+struct Route {
+    from: Address,
+    to: Address,
+    stable: bool
 }
 
 #[derive(
@@ -144,7 +197,12 @@ pub struct Responses {
     //expected_slippage: u32,
 }
 
-pub async fn get_url(chain_id: u64, buy_token: Address, sell_token: Address, amount: U256) -> String {
+pub async fn get_url(
+    chain_id: u64,
+    buy_token: String,
+    sell_token: String,
+    amount: U256,
+) -> String {
     let chain = match chain_id {
         STARGATE_ARBITRUM => "arbitrum.",
         STARGATE_AVAX => "avalanche.",
@@ -153,31 +211,32 @@ pub async fn get_url(chain_id: u64, buy_token: Address, sell_token: Address, amo
         STARGATE_POLYGON => "polygon.",
         STARGATE_FANTOM => "fantom.",
         STARGATE_OPTIMISM => "optimism.",
-        _ => "error"
+        _ => "error",
     };
 
     let excluded_sources = match chain_id {
         STARGATE_ARBITRUM => "Aave_V3,Balancer_V2,Curve_V2,GMX,MultiHop,Saddle,Synapse,WOOFi",
         STARGATE_AVAX => "Aave_V2,Aave_V3,Curve,Curve_V2,GMX,KyberDMM,MultiHop,Pangolin,Platypus,Synapse,WOOFi",
         STARGATE_BINANCE => "ACryptoS,ApeSwap,BakerySwap,Belt,BiSwap,DODO,DODO_V2,Ellipsis,FirebirdOneSwap,KnightSwap,KyberDMM,MDex,Mooniswap,MultiHop,Nerve,PancakeSwap,Synapse,WaultSwap,WOOFi",
-        STARGATE_ETHEREUM => "",
+        STARGATE_ETHEREUM => "0x,Aave_V2,Balancer,Balancer_V2,Bancor,BancorV3,Component,Compound,CryptoCom,Curve,Curve_V2,DODO,DODO_V2,KyberDMM,Lido,MakerPsm,mStable,MultiHop,Saddle,Shell,ShibaSwap,Synapse,Synthetix,Uniswap_V2",
         STARGATE_POLYGON => "0x,Aave_V2,Aave_V3,ApeSwap,Balancer_V2,Curve,Curve_V2,Dfyn,DODO,DODO_V2,FirebirdOneSwap,IronSwap,KyberDMM,MeshSwap,mStable,MultiHop,QuickSwap,Synapse,WaultSwap,WOOFi",
         STARGATE_FANTOM => "Beethovenx,Curve,Curve_V2,MorpheusSwap,MultiHop,SpiritSwap,SushiSwap,Synapse,WOOFi,Yoshi",
         STARGATE_OPTIMISM => "Aave_V3,Beethovenx,Curve,Curve_V2,MultiHop,Saddle,Synapse,Synthetix,WOOFi",
         _ => "error"
     };
     let url = format!("https://{chain}api.0x.org/swap/v1/quote?buyToken={buy_token}&sellToken={sell_token}&sellAmount={amount}&excludedSources={excluded_sources}");
-    return url
+    return url;
 }
 
 pub async fn router_path(
     chain: u64,
-    buy_token: Address,
-    sell_token: Address,
+    buy_token: String,
+    sell_token: String,
     amount: U256,
 ) -> Responses {
     let url = get_url(chain, buy_token, sell_token, amount).await;
-    let res: Responses = get(url).await.unwrap().json().await.unwrap();
+    println!("{url}");
+    let res: Responses = get(url).await.unwrap().json().await.expect("invalid response");
     println!("{res:#?}");
     res
 }
@@ -186,12 +245,12 @@ pub async fn router_path(
 // ==============================================================================================================================
 // ==============================================================================================================================
 
-// Update to handle the other exchanges, and then add in the excluded sources aspect for other chains 
+// Update to handle the other exchanges, and then add in the excluded sources aspect for other chains
 
 pub async fn single_to_single_aggregate(
     chain_id: u64,
-    buy_token: Address,
-    sell_token: Address,
+    buy_token: String,
+    sell_token: String,
     _amount: U256,
 ) -> (Vec<u8>, Vec<Bytes>) {
     let mut steps: Vec<u8> = Vec::new();
@@ -199,7 +258,7 @@ pub async fn single_to_single_aggregate(
     let response = router_path(chain_id, buy_token, sell_token, _amount).await;
     let orders = response.orders;
     for order in orders {
-        let amount: String = order.taker_amount.unwrap().to_string();
+        let amount: String = order.maker_amount.to_string();
         if order.source == "Uniswap_V3" {
             let tokens = Some(order.fill_data.token_address_path).unwrap().unwrap();
             let token_1 = &tokens[0];
@@ -232,7 +291,7 @@ pub async fn single_to_single_aggregate(
                     data.push(Bytes::from(params));
                 }
             }
-        } else if order.source == "Sushiswap" {
+        } else if order.source == "SushiSwap" {
             let mut path: Vec<Address> = Vec::new();
             for token in order.fill_data.token_address_path.unwrap() {
                 let address = token.parse::<Address>().unwrap();
@@ -246,6 +305,70 @@ pub async fn single_to_single_aggregate(
             });
             let encoded_data = Bytes::from(params);
             steps.push(5);
+            data.push(encoded_data);
+        } else if order.source == "PancakeSwap_V2" {
+            let mut path: Vec<Address> = Vec::new();
+            for token in order.fill_data.token_address_path.unwrap() {
+                let address = token.parse::<Address>().unwrap();
+                path.push(address);
+            }
+            let params = AbiEncode::encode(UniswapV2Params {
+                amount_in: U256::from_str(&amount).unwrap(),
+                amount_out_min: U256::from(0),
+                path: path,
+                deadline: U256::from(0),
+            });
+            let encoded_data = Bytes::from(params);
+            steps.push(8);
+            data.push(encoded_data);
+        } else if order.source == "TraderJoe" {
+            let mut path: Vec<Address> = Vec::new();
+            for token in order.fill_data.token_address_path.unwrap() {
+                let address = token.parse::<Address>().unwrap();
+                path.push(address);
+            }
+            let params = AbiEncode::encode(UniswapV2Params {
+                amount_in: U256::from_str(&amount).unwrap(),
+                amount_out_min: U256::from(0),
+                path: path,
+                deadline: U256::from(0),
+            });
+            let encoded_data = Bytes::from(params);
+            steps.push(11);
+            data.push(encoded_data);
+        } else if order.source == "SpookySwap" {
+            let mut path: Vec<Address> = Vec::new();
+            for token in order.fill_data.token_address_path.unwrap() {
+                let address = token.parse::<Address>().unwrap();
+                path.push(address);
+            }
+            let params = AbiEncode::encode(UniswapV2Params {
+                amount_in: U256::from_str(&amount).unwrap(),
+                amount_out_min: U256::from(0),
+                path: path,
+                deadline: U256::from(0),
+            });
+            let encoded_data = Bytes::from(params);
+            steps.push(9);
+            data.push(encoded_data);
+        } else if order.source == "Velodrome" {
+            let mut path: Vec<Address> = Vec::new();
+            let mut routes: Vec<Route> = Vec::new();
+           let token_1 = path[0];
+           let token_2 = path[1];
+           let token_3 = Some(path[3]);
+           routes.push(Route { from: token_1, to: token_2, stable: false });
+           match token_3 {
+               Some(_) => routes.push(Route { from: token_2, to: token_3.unwrap(), stable: false }),
+               None => ()
+           }
+            for token in order.fill_data.token_address_path.unwrap() {
+                let address = token.parse::<Address>().unwrap();
+                path.push(address);
+            }
+            let params = AbiEncode::encode(VeloParams{ amount_in: U256::from_str(&amount).unwrap(), amount_out_min: U256::from(0), routes: routes, deadline: U256::from(0) });
+            let encoded_data = Bytes::from(params);
+            steps.push(10);
             data.push(encoded_data);
         }
     }
@@ -261,8 +384,8 @@ pub async fn single_to_single_aggregate(
 // Get the api's for the function; run each one through the single
 pub async fn _single_to_multi_aggregate(
     chain_id: u64,
-    buy_tokens: Vec<Address>,
-    sell_token: Address,
+    buy_tokens: Vec<String>,
+    sell_token: String,
     amounts: Vec<U256>,
 ) -> (Vec<u8>, Vec<Bytes>) {
     let mut steps = Vec::new();
@@ -270,7 +393,7 @@ pub async fn _single_to_multi_aggregate(
     let mut index = 0;
     for token in buy_tokens {
         let (steps, data) =
-            single_to_single_aggregate(chain_id, token, sell_token, amounts[index]).await;
+            single_to_single_aggregate(chain_id, token, sell_token.clone(), amounts[index]).await;
         index += 1;
     }
 
@@ -279,8 +402,8 @@ pub async fn _single_to_multi_aggregate(
 
 pub async fn _multi_to_single(
     chain_id: u64,
-    buy_token: Address,
-    sell_tokens: Vec<Address>,
+    buy_token: String,
+    sell_tokens: Vec<String>,
     amounts: Vec<U256>,
 ) -> (Vec<u8>, Vec<Bytes>) {
     let mut steps = Vec::new();
@@ -288,7 +411,7 @@ pub async fn _multi_to_single(
     let mut index = 0;
     for token in sell_tokens {
         let (steps, data) =
-            single_to_single_aggregate(chain_id, buy_token, token, amounts[index]).await;
+            single_to_single_aggregate(chain_id, buy_token.clone(), token, amounts[index]).await;
         index += 1;
     }
 
@@ -301,14 +424,14 @@ pub async fn _multi_to_multi() {}
 pub async fn _cross_single_to_single(
     src_chain_id: u64,
     dst_chain_id: u64,
-    buy_token: Address,
-    sell_token: Address,
+    buy_token: String,
+    sell_token: String,
     amount: U256,
 ) {
     let bridge_tokens = _get_bridge_token_path(src_chain_id, dst_chain_id);
     let (src_data_steps, src_data) = single_to_single_aggregate(
         src_chain_id,
-        bridge_tokens[0].parse::<Address>().unwrap(),
+        bridge_tokens[0].to_owned(),
         sell_token,
         amount,
     )
@@ -316,7 +439,7 @@ pub async fn _cross_single_to_single(
     let (dst_steps, dst_data) = single_to_single_aggregate(
         src_chain_id,
         buy_token,
-        bridge_tokens[1].parse::<Address>().unwrap(),
+        bridge_tokens[1].to_owned(),
         amount,
     )
     .await;
@@ -325,15 +448,15 @@ pub async fn _cross_single_to_single(
 pub async fn _cross_single_to_multi(
     src_chain_id: u64,
     dst_chain_id: u64,
-    buy_tokens: Vec<Address>,
-    sell_token: Address,
+    buy_tokens: Vec<String>,
+    sell_token: String,
     sell_amount: U256,
     buy_amounts: Vec<U256>,
 ) {
     let bridge_tokens = _get_bridge_token_path(src_chain_id, dst_chain_id);
     let (src_data_steps, src_data) = single_to_single_aggregate(
         src_chain_id,
-        bridge_tokens[0].parse::<Address>().unwrap(),
+        bridge_tokens[0].to_owned(),
         sell_token,
         sell_amount,
     )
@@ -341,21 +464,35 @@ pub async fn _cross_single_to_multi(
     let (dst_steps, dst_data) = _single_to_multi_aggregate(
         dst_chain_id,
         buy_tokens,
-        bridge_tokens[1].parse::<Address>().unwrap(),
+        bridge_tokens[1].to_owned(),
         buy_amounts,
     )
     .await;
 }
 
-pub async fn _cross_multi_to_single(src_chain_id: u64,
+pub async fn _cross_multi_to_single(
+    src_chain_id: u64,
     dst_chain_id: u64,
-    buy_token: Address,
-    sell_tokens: Vec<Address>,
+    buy_token: String,
+    sell_tokens: Vec<String>,
     sell_amounts: Vec<U256>,
-    buy_amount: U256,) {
-        let bridge_tokens = _get_bridge_token_path(src_chain_id, dst_chain_id);
-        let (src_steps, src_data) = _multi_to_single(src_chain_id, bridge_tokens[0].parse::<Address>().unwrap(), sell_tokens, sell_amounts).await;
-        let (dst_steps, dst_data) = single_to_single_aggregate(dst_chain_id, buy_token, bridge_tokens[1].parse::<Address>().unwrap(), buy_amount).await;
-    }
+    buy_amount: U256,
+) {
+    let bridge_tokens = _get_bridge_token_path(src_chain_id, dst_chain_id);
+    let (src_steps, src_data) = _multi_to_single(
+        src_chain_id,
+        bridge_tokens[0].to_owned(),
+        sell_tokens,
+        sell_amounts,
+    )
+    .await;
+    let (dst_steps, dst_data) = single_to_single_aggregate(
+        dst_chain_id,
+        buy_token,
+        bridge_tokens[1].to_owned(),
+        buy_amount,
+    )
+    .await;
+}
 
 pub async fn _cross_multi_to_multi() {} // this may be easier as we have to get all the assets to just one asset then aggregate that to the other side
